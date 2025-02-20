@@ -7,6 +7,8 @@ import userRouter from "./routes/user.route.js";
 import subscriptionRouter from "./routes/subscription.routes.js";
 import errorHandler from "./middleware/error.middleware.js";
 import cookieParser from "cookie-parser";
+import dotenv from "dotenv";
+dotenv.config();
 
 const app = express();
 

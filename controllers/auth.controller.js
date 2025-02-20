@@ -1,69 +1,82 @@
-import User from "../models/user.model.js";
+import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import { JWT_SECRET, JWT_EXPIRE } from "../config/env.js";
+import { JWT_EXPIRE_IN, JWT_SECRET } from "../config/env.js";
+import User from "../models/user.model.js";
 
-// Register a new user
-export const registerUser = async (req, res, next) => {
+
+export const signUp = async (req, res) => {
+    const session = await mongoose.startSession();
+    session.startTransaction();
     try {
+        //logic to create user 
         const { name, email, password } = req.body;
-
-        // Check if user already exists
-        let user = await User.findOne({ email });
-        if (user) {
-            return res.status(400).json({ success: false, message: "User already exists" });
+        //check if user already exists
+        const existingUser = await User.findOne({ email });
+        if (existingUser) {
+            const error = new Error("User already exists");
+            error.statusCode = 400;
+            throw error;
         }
-
-        // Create new user
-        user = new User({ name, email, password });
-
-        // Hash password
+        //Hash password
         const salt = await bcrypt.genSalt(10);
-        user.password = await bcrypt.hash(password, salt);
+        const hashedPassword = await bcrypt.hash(password, salt);
 
-        await user.save();
 
-        // Generate JWT token
-        const token = jwt.sign({ id: user._id }, JWT_SECRET, { expiresIn: JWT_EXPIRE });
+        const newUser = new User({ name, email, password: hashedPassword });
+        await newUser.save({ session });
 
-        res.status(201).json({ success: true, token });
+        const token = jwt.sign({ userId: newUser._id }, JWT_SECRET, { expiresIn: JWT_EXPIRE_IN });
+        res.status(201).json({ token });
+
+        await session.commitTransaction();
+        session.endSession();
+
+        res.status(201).json({
+            success: true,
+            message: "User created successfully",
+            data: {
+                user: newUser[0],
+                token
+            }
+        });
     } catch (error) {
-        next(error);
+        await session.abortTransaction();
     }
-};
-
-// Login user
-export const loginUser = async (req, res, next) => {
-    try {
-        const { email, password } = req.body;
-
-        // Check if user exists
-        const user = await User.findOne({ email });
-        if (!user) {
-            return res.status(400).json({ success: false, message: "Invalid credentials" });
+}
+export const signIn = async (req, res) => {
+    //logic to sign in user
+    const { email, password } = req.body;
+    //check if user exists
+    const user = await User.findOne({ email });
+    if (!user) {
+        const error = new Error("User not found");
+        error.statusCode = 400;
+        throw error;
+    }
+    //check if password is correct
+    const isPasswordCorrect = await bcrypt.compare(password, user.password);
+    if (!isPasswordCorrect) {
+        const error = new Error("Invalid password");
+        error.statusCode = 400;
+        throw error;
+    }
+    //generate token
+    const token = jwt.sign({ userId: user._id }, JWT_SECRET, { expiresIn: JWT_EXPIRE_IN });
+    res.status(200).json({
+        success: true,
+        message: "User signed in successfully",
+        data: {
+            user,
+            token
         }
-
-        // Check password
-        const isMatch = await bcrypt.compare(password, user.password);
-        if (!isMatch) {
-            return res.status(400).json({ success: false, message: "Invalid credentials" });
-        }
-
-        // Generate JWT token
-        const token = jwt.sign({ id: user._id }, JWT_SECRET, { expiresIn: JWT_EXPIRE });
-
-        res.status(200).json({ success: true, token });
-    } catch (error) {
-        next(error);
-    }
-};
-
-// Get current logged in user
-export const getCurrentUser = async (req, res, next) => {
-    try {
-        const user = await User.findById(req.user.id).select("-password");
-        res.status(200).json({ success: true, data: user });
-    } catch (error) {
-        next(error);
-    }
-}; 
+    });
+}
+export const signOut = async (req, res) => {
+    //logic to sign out user
+    res.clearCookie("token");
+    res.status(200).json({
+        success: true,
+        message: "User signed out successfully"
+    });
+}
