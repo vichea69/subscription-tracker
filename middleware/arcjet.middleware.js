@@ -2,7 +2,7 @@ import aj from "../config/arcjet.js";
 
 const arcjetMiddleware = async (req, res, next) => {
     try {
-        const decision = await aj.protect(req);
+        const decision = await aj.protect(req, { requested: 1 });
         if (decision.isDenied()) {
             if (decision.reason.isRateLimited()) {
                 return res.status(429).json({ error: "Too many requests" });
@@ -15,7 +15,7 @@ const arcjetMiddleware = async (req, res, next) => {
         next();
     } catch (error) {
         console.error("Arcjet middleware error", error);
-        res.status(500).json({ error: "Internal server error" });
+        res.status(500).json({ error: { message: "Rate limit exceeded" } });
     }
 };
 
