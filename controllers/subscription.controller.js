@@ -1,6 +1,6 @@
 import Subscription from "../models/subscription.model.js";
 
-export const createSubscription = async (req, res, next) => {
+export const createSubscription = async (req, res) => {
     try {
         const subscriptionData = {
             ...req.body,
@@ -23,7 +23,6 @@ export const createSubscription = async (req, res, next) => {
         });
     }
 };
-
 export const getUserSubscriptions = async (req, res, next) => {
     try {
         //check if user is the same as the one in the token
@@ -57,3 +56,16 @@ export const getAllSubscriptions = async (req, res, next) => {
         next(error);
     }
 };
+export const getSubscriptionById = async (req, res, next) => {
+    try {
+        const subscription = await Subscription.findById(req.params.id)
+            .populate('user', 'name');
+        res.status(200).json({
+            success: true,
+            message: "Subscription fetched successfully",
+            data: subscription,
+        });
+    } catch (error) {
+        next(error);
+    }
+}
